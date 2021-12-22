@@ -229,6 +229,9 @@ static PresentationContext* PresentationContext_new(VideoClientContext* video, B
 	}
 	h264_context_reset(ret->h264, width, height);
 
+	//Ely
+	ret->h264->context_type = 3;
+
 	ret->currentSample = Stream_New(NULL, 4096);
 	if (!ret->currentSample)
 	{

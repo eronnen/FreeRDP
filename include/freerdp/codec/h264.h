@@ -37,6 +37,14 @@ enum _H264_RATECONTROL_MODE
 };
 typedef enum _H264_RATECONTROL_MODE H264_RATECONTROL_MODE;
 
+struct DecompressSampleInfo
+{
+	UINT32 decompressMs;
+	UINT32 encodedFrameSize;
+};
+
+static int g_h264_context_index = 1;
+
 struct _H264_CONTEXT
 {
 	BOOL Compressor;
@@ -70,6 +78,18 @@ struct _H264_CONTEXT
 
 	void* lumaData;
 	wLog* log;
+
+	// Ely
+	int context_type;
+	int context_index;
+	char* perf_log_file_path;
+	int decompress_info_count;
+	struct DecompressSampleInfo decompressInfo[5000];
+
+	// Ely2
+	char* nv12_perf_log_file_path;
+	int nv12_info_count;
+	struct DecompressSampleInfo nv12convertInfo[5000];
 };
 #ifdef __cplusplus
 extern "C"

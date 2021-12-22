@@ -27,6 +27,7 @@
 #include <winpr/library.h>
 #include <winpr/bitstream.h>
 #include <winpr/synch.h>
+#include <time.h>
 
 #include <freerdp/primitives.h>
 #include <freerdp/codec/h264.h>
@@ -447,9 +448,18 @@ static BOOL avc444_process_rects(H264_CONTEXT* h264, const BYTE* pSrcData, UINT3
 	UINT32* piDstStride = h264->iYUV444Stride;
 	BYTE** ppYUVDstData = h264->pYUV444Data;
 	const UINT32* piStride = h264->iStride;
+	clock_t startTime, endTime;
 
+	startTime = clock();
 	if (h264->subsystem->Decompress(h264, pSrcData, SrcSize) < 0)
 		return FALSE;
+	endTime = clock();
+	if (h264->decompress_info_count < sizeof(h264->decompressInfo) / sizeof(h264->decompressInfo[0]))
+	{
+		int index = h264->decompress_info_count++;
+		h264->decompressInfo[index].decompressMs = (UINT32)(endTime - startTime);
+		h264->decompressInfo[index].encodedFrameSize = SrcSize;
+	}
 
 	pYUVData[0] = h264->pYUVData[0];
 	pYUVData[1] = h264->pYUVData[1];
@@ -582,6 +592,13 @@ static BOOL CALLBACK h264_register_subsystems(PINIT_ONCE once, PVOID param, PVOI
 		i++;
 	}
 #endif
+#ifdef WITH_MEDIACODEC_NDK
+	{
+		extern H264_CONTEXT_SUBSYSTEM g_Subsystem_mediacodec;
+		subSystems[i] = &g_Subsystem_mediacodec;
+		i++;
+	}
+#endif
 #ifdef WITH_OPENH264
 	{
 		extern H264_CONTEXT_SUBSYSTEM g_Subsystem_OpenH264;
@@ -621,6 +638,7 @@ static BOOL h264_context_init(H264_CONTEXT* h264)
 		if (!subsystem || !subsystem->Init)
 			break;
 
+		WLog_Print(h264->log, WLOG_INFO, "h264 init subsystem [%s]", subsystem->name);
 		if (subsystem->Init(h264))
 		{
 			h264->subsystem = subsystem;
@@ -656,6 +674,16 @@ H264_CONTEXT* h264_context_new(BOOL Compressor)
 		/* Default compressor settings, may be changed by caller */
 		h264->BitRate = 1000000;
 		h264->FrameRate = 30;
+	} 
+	//Ely
+	else 
+	{
+		h264->context_index = g_h264_context_index++;
+		h264->perf_log_file_path = calloc(100, 1);
+		sprintf_s(h264->perf_log_file_path, 100, "/sdcard/ely/perf/perf_h264_%d_mediacodec.txt", h264->context_index);
+
+		h264->nv12_perf_log_file_path = calloc(100, 1);
+		sprintf_s(h264->nv12_perf_log_file_path, 100, "/sdcard/ely/perf/perf_h264_%d_mediacodec_nv12.txt", h264->context_index);
 	}
 
 	if (!h264_context_init(h264))
@@ -677,8 +705,28 @@ void h264_context_free(H264_CONTEXT* h264)
 	if (h264)
 	{
 		size_t x;
+		FILE* f;
 		if (h264->subsystem)
 			h264->subsystem->Uninit(h264);
+
+		f = fopen(h264->perf_log_file_path, "w");
+		fprintf(f, "%d,%d,%d\n", h264->context_index, h264->context_type, h264->decompress_info_count);
+		for (x = 0; x < h264->decompress_info_count; x++)
+		{
+			fprintf(f, "%d,%d\n", h264->decompressInfo[x].decompressMs, h264->decompressInfo[x].encodedFrameSize);
+		}
+		fclose(f);
+
+		if (h264->nv12_info_count > 0)
+		{
+			f = fopen(h264->nv12_perf_log_file_path, "w");
+			fprintf(f, "%d,%d,%d\n", h264->context_index, h264->context_type, h264->nv12_info_count);
+			for (x = 0; x < h264->nv12_info_count; x++)
+			{
+				fprintf(f, "%d,%d\n", h264->nv12convertInfo[x].decompressMs, h264->nv12convertInfo[x].encodedFrameSize);
+			}
+			fclose(f);
+		}
 
 		for (x = 0; x < 3; x++)
 		{
