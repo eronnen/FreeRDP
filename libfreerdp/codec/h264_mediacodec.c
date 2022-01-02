@@ -27,11 +27,14 @@
 
 #include "h264.h"
 
+const int COLOR_FormatYUV420Planar = 19;
+
 struct _H264_CONTEXT_MEDIACODEC
 {
     AMediaCodec* decoder;
     AMediaFormat* inputFormat;
     AMediaFormat* outputFormat;
+    ssize_t currentOutputBufferIndex;
 };
 
 typedef struct _H264_CONTEXT_MEDIACODEC H264_CONTEXT_MEDIACODEC;
@@ -52,6 +55,26 @@ static void set_mediacodec_format(H264_CONTEXT* h264, AMediaFormat** formatVaria
     *formatVariable = newFormat;
 }
 
+static void release_current_outputbuffer(H264_CONTEXT* h264)
+{
+    H264_CONTEXT_MEDIACODEC* sys = (H264_CONTEXT_MEDIACODEC*)h264->pSystemData;
+    media_status_t status = AMEDIA_OK;
+
+    if (sys->currentOutputBufferIndex < 0)
+    {
+        return;
+    }
+
+    WLog_Print(h264->log, WLOG_ERROR, "MediaCodec releasing output buffer %d", sys->currentOutputBufferIndex);
+    status = AMediaCodec_releaseOutputBuffer(sys->decoder, sys->currentOutputBufferIndex, FALSE);
+    if (status != AMEDIA_OK)
+    {
+        WLog_Print(h264->log, WLOG_ERROR, "Error AMediaCodec_releaseOutputBuffer %d", status);
+    }
+
+    sys->currentOutputBufferIndex = -1;
+}
+
 static int mediacodec_compress(H264_CONTEXT* h264, const BYTE** pSrcYuv, const UINT32* pStride,
                                BYTE** ppDstData, UINT32* pDstSize)
 {
@@ -66,6 +89,11 @@ static int mediacodec_decompress(H264_CONTEXT* h264, const BYTE* pSrcData, UINT3
     size_t inputBufferSize, outputBufferSize;
     uint8_t* inputBuffer;
     media_status_t status;
+    const char* media_format;
+    BYTE** pYUVData = h264->pYUVData;
+	UINT32* iStride = h264->iStride;
+
+    release_current_outputbuffer(h264);
 
     while (true)
     {
@@ -75,6 +103,7 @@ static int mediacodec_decompress(H264_CONTEXT* h264, const BYTE* pSrcData, UINT3
         if (inputBufferId < 0)
         {
             WLog_Print(h264->log, WLOG_ERROR, "AMediaCodec_dequeueInputBuffer failed [%d]", inputBufferId);
+            // TODO: sleep
             continue;
         }
 
@@ -93,6 +122,16 @@ static int mediacodec_decompress(H264_CONTEXT* h264, const BYTE* pSrcData, UINT3
             return -1;
         }
 
+        WLog_Print(h264->log, WLOG_INFO, "MediaCodec copying [%d] bytes to the input buffer of size [%d]", SrcSize, inputBufferSize);
+        memcpy(inputBuffer, pSrcData, SrcSize);
+        WLog_Print(h264->log, WLOG_INFO, "MediaCodec queing input buffer [%d]", inputBufferId);
+        status = AMediaCodec_queueInputBuffer(sys->decoder, inputBufferId, 0, SrcSize, 0, 0);
+        if (status != AMEDIA_OK)
+        {
+            WLog_Print(h264->log, WLOG_ERROR, "Error AMediaCodec_queueInputBuffer %d", status);
+            return -1;
+        }
+
         while (true)
         {
             AMediaCodecBufferInfo bufferInfo;
@@ -105,14 +144,29 @@ static int mediacodec_decompress(H264_CONTEXT* h264, const BYTE* pSrcData, UINT3
                 uint8_t* outputBuffer;
                 WLog_Print(h264->log, WLOG_INFO, "MediaCodec getting output buffer");
                 outputBuffer = AMediaCodec_getOutputBuffer(sys->decoder, outputBufferId, &outputBufferSize);
-                WLog_Print(h264->log, WLOG_INFO, "MediaCodec got output buffer 0x[%p]", outputBuffer);
-                status = AMediaCodec_releaseOutputBuffer(sys->decoder, outputBuffer, 0);
+                WLog_Print(h264->log, WLOG_INFO, "MediaCodec got output buffer [%p,%d]", outputBuffer, outputBufferSize);
+                sys->currentOutputBufferIndex = outputBufferId;
+
+                //TODO: give a surface in configure and use AImage API!!!!
+                if (outputBufferSize != (1920*1088 + 960 * 544 * 2))
+                {
+                    WLog_Print(h264->log, WLOG_ERROR, "Error unexpected output buffer size %d", outputBufferSize);
+                    return -1;
+                }
+
+                pYUVData[0] = outputBuffer;
+                pYUVData[1] = outputBuffer + 1920*1088;
+                pYUVData[2] = outputBuffer + 1920*1088 + 960 * 544;
+                iStride[0] = 1920;
+                iStride[1] = 960;
+                iStride[2] = 960;
+
                 break;
             }
             else if (outputBufferId ==  AMEDIACODEC_INFO_OUTPUT_FORMAT_CHANGED)
             {
                 AMediaFormat* outputFormat;
-                WLog_Print(h264->log, WLOG_INFO, "MediaCodec Output buffer changed, getting new one");
+                WLog_Print(h264->log, WLOG_INFO, "MediaCodec Output format changed, getting new one");
                 outputFormat = AMediaCodec_getOutputFormat(sys->decoder);
                 if (outputFormat == NULL)
                 {
@@ -120,10 +174,19 @@ static int mediacodec_decompress(H264_CONTEXT* h264, const BYTE* pSrcData, UINT3
                     return -1;
                 }
                 set_mediacodec_format(h264, &sys->outputFormat, outputFormat);
+                
+                media_format = AMediaFormat_toString(sys->outputFormat);
+                if (media_format == NULL)
+                {
+                    WLog_Print(h264->log, WLOG_ERROR, "AMediaFormat_toString failed");
+                    return -1;
+                }
+                WLog_Print(h264->log, WLOG_INFO, "Updated MediaCodec output format to [%s]", media_format);
             }
             else if (outputBufferId ==  AMEDIACODEC_INFO_TRY_AGAIN_LATER)
             {
                 WLog_Print(h264->log, WLOG_WARN, "AMediaCodec_dequeueOutputBuffer need to try again later");
+                // TODO: sleep
             }
             else if (outputBufferId == AMEDIACODEC_INFO_OUTPUT_BUFFERS_CHANGED)
             {
@@ -139,6 +202,7 @@ static int mediacodec_decompress(H264_CONTEXT* h264, const BYTE* pSrcData, UINT3
         break;
     }
 
+    WLog_Print(h264->log, WLOG_INFO, "MediaCodec decompressed successfully");
     return 1;
 }
 
@@ -152,8 +216,10 @@ static void mediacodec_uninit(H264_CONTEXT* h264)
 	if (!sys)
 		return;
 
+
     if (sys->decoder != NULL)
     {
+        release_current_outputbuffer(h264);
         status = AMediaCodec_stop(sys->decoder);
         if (status != AMEDIA_OK)
         {
@@ -169,8 +235,8 @@ static void mediacodec_uninit(H264_CONTEXT* h264)
         sys->decoder = NULL;
     }
 
-    set_mediacodec_format(h264, sys->inputFormat, NULL);
-    set_mediacodec_format(h264, sys->outputFormat, NULL);
+    set_mediacodec_format(h264, &sys->inputFormat, NULL);
+    set_mediacodec_format(h264, &sys->outputFormat, NULL);
 
     WLog_Print(h264->log, WLOG_INFO, "Done uninitializing MediaCodec");
 
@@ -202,6 +268,7 @@ static BOOL mediacodec_init(H264_CONTEXT* h264)
 
 	h264->pSystemData = (void*)sys;
 
+    sys->currentOutputBufferIndex = -1;
     sys->decoder = AMediaCodec_createDecoderByType("video/avc");
     if (sys->decoder == NULL)
     {
@@ -229,7 +296,7 @@ static BOOL mediacodec_init(H264_CONTEXT* h264)
     AMediaFormat_setString(sys->inputFormat, AMEDIAFORMAT_KEY_MIME, "video/avc");
     AMediaFormat_setInt32(sys->inputFormat, AMEDIAFORMAT_KEY_WIDTH, 1920);
     AMediaFormat_setInt32(sys->inputFormat, AMEDIAFORMAT_KEY_HEIGHT, 1088);
-    AMediaFormat_setInt32(sys->inputFormat, AMEDIAFORMAT_KEY_COLOR_FORMAT, AIMAGE_FORMAT_YUV_420_888);
+    AMediaFormat_setInt32(sys->inputFormat, AMEDIAFORMAT_KEY_COLOR_FORMAT, COLOR_FormatYUV420Planar);
 
     media_format = AMediaFormat_toString(sys->inputFormat);
     if (media_format == NULL)
