@@ -32,8 +32,11 @@ const int COLOR_FormatYUV420Planar = 19;
 struct _H264_CONTEXT_MEDIACODEC
 {
     AMediaCodec* decoder;
+    ANativeWindow* nativeWindow;
     AMediaFormat* inputFormat;
     AMediaFormat* outputFormat;
+    int32_t width;
+    int32_t height;
     ssize_t currentOutputBufferIndex;
 };
 
@@ -95,6 +98,30 @@ static int mediacodec_decompress(H264_CONTEXT* h264, const BYTE* pSrcData, UINT3
 
     release_current_outputbuffer(h264);
 
+    if (sys->width == 0)
+    {
+        int32_t width = h264->width;
+        int32_t height = h264->height;
+        if (width % 16 != 0)
+            width += 16 - width % 16;
+        if (height % 16 != 0)
+            height += 16 - height % 16;
+
+        WLog_Print(h264->log, WLOG_INFO, "MediaCodec setting width and height [%d,%d]", width, height);
+        AMediaFormat_setInt32(sys->inputFormat, AMEDIAFORMAT_KEY_WIDTH, width);
+        AMediaFormat_setInt32(sys->inputFormat, AMEDIAFORMAT_KEY_HEIGHT, height);
+        
+        status = AMediaCodec_setParameters(sys->decoder, sys->inputFormat);
+        if (status != AMEDIA_OK)
+        {
+            WLog_Print(h264->log, WLOG_ERROR, "AMediaCodec_setParameters failed: %d", status);
+            return -1;
+        }
+
+        sys->width = width;
+        sys->height = height;
+    }
+
     while (true)
     {
         WLog_Print(h264->log, WLOG_INFO, "MediaCodec calling AMediaCodec_dequeueInputBuffer");
@@ -148,19 +175,18 @@ static int mediacodec_decompress(H264_CONTEXT* h264, const BYTE* pSrcData, UINT3
                 sys->currentOutputBufferIndex = outputBufferId;
 
                 //TODO: give a surface in configure and use AImage API!!!!
-                if (outputBufferSize != (1920*1088 + 960 * 544 * 2))
+                if (outputBufferSize != (sys->width * sys->height + ((sys->width + 1) / 2) * ((sys->height + 1) / 2) * 2))
                 {
                     WLog_Print(h264->log, WLOG_ERROR, "Error unexpected output buffer size %d", outputBufferSize);
                     return -1;
                 }
 
+                iStride[0] = sys->width;
+                iStride[1] = (sys->width + 1) / 2;
+                iStride[2] = (sys->width + 1) / 2;
                 pYUVData[0] = outputBuffer;
-                pYUVData[1] = outputBuffer + 1920*1088;
-                pYUVData[2] = outputBuffer + 1920*1088 + 960 * 544;
-                iStride[0] = 1920;
-                iStride[1] = 960;
-                iStride[2] = 960;
-
+                pYUVData[1] = outputBuffer + iStride[0] * sys->height;
+                pYUVData[2] = outputBuffer + iStride[0] * sys->height + iStride[1] * (sys->height + 1) / 2;
                 break;
             }
             else if (outputBufferId ==  AMEDIACODEC_INFO_OUTPUT_FORMAT_CHANGED)
@@ -269,6 +295,7 @@ static BOOL mediacodec_init(H264_CONTEXT* h264)
 	h264->pSystemData = (void*)sys;
 
     sys->currentOutputBufferIndex = -1;
+    sys->width = sys->height = 0; // update when we're given the height and width
     sys->decoder = AMediaCodec_createDecoderByType("video/avc");
     if (sys->decoder == NULL)
     {
@@ -286,6 +313,8 @@ static BOOL mediacodec_init(H264_CONTEXT* h264)
     WLog_Print(h264->log, WLOG_INFO, "MediaCodec using video/avc codec [%s]", codec_name);
     AMediaCodec_releaseName(sys->decoder, codec_name);
 
+    //sys->nativeWindow = ANativeWindow_
+
     sys->inputFormat = AMediaFormat_new();
     if (sys->inputFormat == NULL)
     {
@@ -294,8 +323,8 @@ static BOOL mediacodec_init(H264_CONTEXT* h264)
     }
 
     AMediaFormat_setString(sys->inputFormat, AMEDIAFORMAT_KEY_MIME, "video/avc");
-    AMediaFormat_setInt32(sys->inputFormat, AMEDIAFORMAT_KEY_WIDTH, 1920);
-    AMediaFormat_setInt32(sys->inputFormat, AMEDIAFORMAT_KEY_HEIGHT, 1088);
+    AMediaFormat_setInt32(sys->inputFormat, AMEDIAFORMAT_KEY_WIDTH, 0);
+    AMediaFormat_setInt32(sys->inputFormat, AMEDIAFORMAT_KEY_HEIGHT, 0);
     AMediaFormat_setInt32(sys->inputFormat, AMEDIAFORMAT_KEY_COLOR_FORMAT, COLOR_FormatYUV420Planar);
 
     media_format = AMediaFormat_toString(sys->inputFormat);
