@@ -179,65 +179,72 @@ static int mediacodec_decompress(H264_CONTEXT* h264, const BYTE* pSrcData, UINT3
             //ssize_t outputBufferId = 0;
             if (outputBufferId >= 0)
             {
-
-                uint8_t* outputBuffer;
-                WLog_Print(h264->log, WLOG_INFO, "MediaCodec getting output buffer");
-                outputBuffer = AMediaCodec_getOutputBuffer(sys->decoder, outputBufferId, &outputBufferSize);
-                WLog_Print(h264->log, WLOG_INFO, "MediaCodec got output buffer [%p,%d]", outputBuffer, outputBufferSize);
                 sys->currentOutputBufferIndex = outputBufferId;
 
-                if (outputBufferSize != (sys->width * sys->height + ((sys->width + 1) / 2) * ((sys->height + 1) / 2) * 2))
-                {
-                    WLog_Print(h264->log, WLOG_ERROR, "Error unexpected output buffer size %d", outputBufferSize);
-                    return -1;
-                }
+                // uint8_t* outputBuffer;
+                // WLog_Print(h264->log, WLOG_INFO, "MediaCodec getting output buffer");
+                // outputBuffer = AMediaCodec_getOutputBuffer(sys->decoder, outputBufferId, &outputBufferSize);
+                // WLog_Print(h264->log, WLOG_INFO, "MediaCodec got output buffer [%p,%d]", outputBuffer, outputBufferSize);
+                // sys->currentOutputBufferIndex = outputBufferId;
 
-                iStride[0] = sys->width;
-                iStride[1] = (sys->width + 1) / 2;
-                iStride[2] = (sys->width + 1) / 2;
-                pYUVData[0] = outputBuffer;
-                pYUVData[1] = outputBuffer + iStride[0] * sys->height;
-                pYUVData[2] = outputBuffer + iStride[0] * sys->height + iStride[1] * ((sys->height + 1) / 2);
-                
-                // AImage* image = NULL;
-                // int i = 0;
-                // int32_t numberOfPlanes = 0;
-                // WLog_Print(h264->log, WLOG_INFO, "MediaCodec getting latest image buffer");
-                // status = AImageReader_acquireLatestImage(sys->imageReader, &image);
-                // if (status == AMEDIA_IMGREADER_NO_BUFFER_AVAILABLE)
+                // if (outputBufferSize != (sys->width * sys->height + ((sys->width + 1) / 2) * ((sys->height + 1) / 2) * 2))
                 // {
-                //     WLog_Print(h264->log, WLOG_INFO, "MediaCodec AImageReader_acquireLatestImage no buffer available");
-                //     continue;
-                // }
-                // if (status != AMEDIA_OK || image == NULL)
-                // {
-                //     WLog_Print(h264->log, WLOG_ERROR, "AImageReader_acquireLatestImage failed: %d", status);
+                //     WLog_Print(h264->log, WLOG_ERROR, "Error unexpected output buffer size %d", outputBufferSize);
                 //     return -1;
                 // }
-                // WLog_Print(h264->log, WLOG_INFO, "MediaCodec got latest image buffer");
 
-                // status = AImage_getNumberOfPlanes(image, &numberOfPlanes);
-                // WLog_Print(h264->log, WLOG_INFO, "MediaCodec got number of planes: [%d]", numberOfPlanes);
+                // iStride[0] = sys->width;
+                // iStride[1] = (sys->width + 1) / 2;
+                // iStride[2] = (sys->width + 1) / 2;
+                // pYUVData[0] = outputBuffer;
+                // pYUVData[1] = outputBuffer + iStride[0] * sys->height;
+                // pYUVData[2] = outputBuffer + iStride[0] * sys->height + iStride[1] * ((sys->height + 1) / 2);
+                
+                AImage* image = NULL;
+                int i = 0;
+                int32_t numberOfPlanes = 0;
+                while (true)
+                {
+                    WLog_Print(h264->log, WLOG_INFO, "MediaCodec getting latest image buffer");
+                    status = AImageReader_acquireLatestImage(sys->imageReader, &image);
+                    if (status == AMEDIA_IMGREADER_NO_BUFFER_AVAILABLE)
+                    {
+                        WLog_Print(h264->log, WLOG_INFO, "MediaCodec AImageReader_acquireLatestImage no buffer available");
+                        Sleep(1000);
+                        continue;
+                    }
+                    if (status != AMEDIA_OK || image == NULL)
+                    {
+                        WLog_Print(h264->log, WLOG_ERROR, "AImageReader_acquireLatestImage failed: %d", status);
+                        return -1;
+                    }
 
-                // for (i = 0; i < 3; i++)
-                // {
-                //     int dataLength;
-                //     WLog_Print(h264->log, WLOG_INFO, "MediaCodec getting plane [%d] data", i);
-                //     status = AImage_getPlaneData(image, i, &pYUVData[i], &dataLength);
-                //     if (status != AMEDIA_OK)
-                //     {
-                //         WLog_Print(h264->log, WLOG_ERROR, "AImage_getPlaneData failed: %d", status);
-                //     }
-                //     WLog_Print(h264->log, WLOG_INFO, "MediaCodec got plane [%d] data: [%d]", dataLength);
+                    break;
+                }
+                WLog_Print(h264->log, WLOG_INFO, "MediaCodec got latest image buffer");
 
-                //     WLog_Print(h264->log, WLOG_INFO, "MediaCodec getting plane [%d] stride", i);
-                //     status = AImage_getPlaneRowStride(image, i, &iStride[i]);
-                //     if (status != AMEDIA_OK)
-                //     {
-                //         WLog_Print(h264->log, WLOG_ERROR, "AImage_getPlaneRowStride failed: %d", status);
-                //     }
-                //     WLog_Print(h264->log, WLOG_INFO, "MediaCodec got plane [%d] stride: [%d]", iStride[i]);
-                // }
+                status = AImage_getNumberOfPlanes(image, &numberOfPlanes);
+                WLog_Print(h264->log, WLOG_INFO, "MediaCodec got number of planes: [%d]", numberOfPlanes);
+
+                for (i = 0; i < 3; i++)
+                {
+                    int dataLength;
+                    WLog_Print(h264->log, WLOG_INFO, "MediaCodec getting plane [%d] data", i);
+                    status = AImage_getPlaneData(image, i, &pYUVData[i], &dataLength);
+                    if (status != AMEDIA_OK)
+                    {
+                        WLog_Print(h264->log, WLOG_ERROR, "AImage_getPlaneData failed: %d", status);
+                    }
+                    WLog_Print(h264->log, WLOG_INFO, "MediaCodec got plane [%d] data: [%d]", dataLength);
+
+                    WLog_Print(h264->log, WLOG_INFO, "MediaCodec getting plane [%d] stride", i);
+                    status = AImage_getPlaneRowStride(image, i, &iStride[i]);
+                    if (status != AMEDIA_OK)
+                    {
+                        WLog_Print(h264->log, WLOG_ERROR, "AImage_getPlaneRowStride failed: %d", status);
+                    }
+                    WLog_Print(h264->log, WLOG_INFO, "MediaCodec got plane [%d] stride: [%d]", iStride[i]);
+                }
 
                 break;
             }
@@ -352,9 +359,11 @@ static BOOL mediacodec_init(H264_CONTEXT* h264)
 
 	h264->pSystemData = (void*)sys;
 
-    //sys->currentOutputBufferIndex = -1;
+    sys->currentOutputBufferIndex = -1;
     sys->currnetImage = NULL;
     sys->width = sys->height = 0; // update when we're given the height and width
+    sys->width = 1920; 
+    sys->height = 1088; // update when we're given the height and width
     sys->decoder = AMediaCodec_createDecoderByType("video/avc");
     if (sys->decoder == NULL)
     {
@@ -372,7 +381,7 @@ static BOOL mediacodec_init(H264_CONTEXT* h264)
     WLog_Print(h264->log, WLOG_INFO, "MediaCodec using video/avc codec [%s]", codec_name);
     AMediaCodec_releaseName(sys->decoder, codec_name);
 
-    status = AImageReader_new(1920, 1088, AIMAGE_FORMAT_YUV_420_888, 1, &sys->imageReader);
+    status = AImageReader_new(1920, 1088, AIMAGE_FORMAT_YUV_420_888, 2, &sys->imageReader);
     if (status != AMEDIA_OK || sys->imageReader == NULL)
     {
         WLog_Print(h264->log, WLOG_ERROR, "AImageReader_new failed: %d", status);
@@ -394,10 +403,11 @@ static BOOL mediacodec_init(H264_CONTEXT* h264)
     }
 
     AMediaFormat_setString(sys->inputFormat, AMEDIAFORMAT_KEY_MIME, "video/avc");
-    AMediaFormat_setInt32(sys->inputFormat, AMEDIAFORMAT_KEY_WIDTH, 0);
-    AMediaFormat_setInt32(sys->inputFormat, AMEDIAFORMAT_KEY_HEIGHT, 0);
-    //AMediaFormat_setInt32(sys->inputFormat, AMEDIAFORMAT_KEY_COLOR_FORMAT, COLOR_FormatYUV420Flexible);
-    AMediaFormat_setInt32(sys->inputFormat, AMEDIAFORMAT_KEY_COLOR_FORMAT, COLOR_FormatYUV420Planar);
+    AMediaFormat_setInt32(sys->inputFormat, AMEDIAFORMAT_KEY_WIDTH, 1920);
+    AMediaFormat_setInt32(sys->inputFormat, AMEDIAFORMAT_KEY_HEIGHT, 1088);
+    AMediaFormat_setInt32(sys->inputFormat, AMEDIAFORMAT_KEY_COLOR_FORMAT, COLOR_FormatYUV420Flexible);
+    //AMediaFormat_setInt32(sys->inputFormat, AMEDIAFORMAT_KEY_COLOR_FORMAT, COLOR_FormatYUV420Planar);
+    AMediaFormat_setInt32(sys->inputFormat, "allow-frame-drop", 0);
     AMediaFormat_setInt32(sys->inputFormat, AMEDIAFORMAT_KEY_PUSH_BLANK_BUFFERS_ON_STOP, 1);
 
     media_format = AMediaFormat_toString(sys->inputFormat);
@@ -408,8 +418,8 @@ static BOOL mediacodec_init(H264_CONTEXT* h264)
     }
 
     WLog_Print(h264->log, WLOG_INFO, "Configuring MediaCodec with input MediaFormat [%s]", media_format);
-    //status = AMediaCodec_configure(sys->decoder, sys->inputFormat, imageReaderNativeWindow, NULL, 0);
-    status = AMediaCodec_configure(sys->decoder, sys->inputFormat, NULL, NULL, 0);
+    status = AMediaCodec_configure(sys->decoder, sys->inputFormat, imageReaderNativeWindow, NULL, 0);
+    //status = AMediaCodec_configure(sys->decoder, sys->inputFormat, NULL, NULL, 0);
     if (status != AMEDIA_OK)
     {
         WLog_Print(h264->log, WLOG_ERROR, "AMediaCodec_configure failed: %d", status);
