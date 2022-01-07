@@ -680,10 +680,7 @@ H264_CONTEXT* h264_context_new(BOOL Compressor)
 	{
 		h264->context_index = g_h264_context_index++;
 		h264->perf_log_file_path = calloc(100, 1);
-		sprintf_s(h264->perf_log_file_path, 100, "/sdcard/ely/perf/perf_h264_%d_mediacodec.txt", h264->context_index);
-
-		h264->nv12_perf_log_file_path = calloc(100, 1);
-		sprintf_s(h264->nv12_perf_log_file_path, 100, "/sdcard/ely/perf/perf_h264_%d_mediacodec_nv12.txt", h264->context_index);
+		sprintf_s(h264->perf_log_file_path, 100, "/sdcard/ely/perf/perf_h264_%d_mediacodec_ndk.txt", h264->context_index);
 	}
 
 	if (!h264_context_init(h264))
@@ -716,17 +713,6 @@ void h264_context_free(H264_CONTEXT* h264)
 			fprintf(f, "%d,%d\n", h264->decompressInfo[x].decompressMs, h264->decompressInfo[x].encodedFrameSize);
 		}
 		fclose(f);
-
-		if (h264->nv12_info_count > 0)
-		{
-			f = fopen(h264->nv12_perf_log_file_path, "w");
-			fprintf(f, "%d,%d,%d\n", h264->context_index, h264->context_type, h264->nv12_info_count);
-			for (x = 0; x < h264->nv12_info_count; x++)
-			{
-				fprintf(f, "%d,%d\n", h264->nv12convertInfo[x].decompressMs, h264->nv12convertInfo[x].encodedFrameSize);
-			}
-			fclose(f);
-		}
 
 		for (x = 0; x < 3; x++)
 		{

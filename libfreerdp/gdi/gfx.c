@@ -569,7 +569,6 @@ static UINT gdi_SurfaceCommand_AVC420(rdpGdi* gdi, RdpgfxClientContext* context,
 
 	if (!surface->h264)
 	{
-		WLog_Print(TAG, WLOG_WARN, "gfx new context");
 		surface->h264 = h264_context_new(FALSE);
 
 		if (!surface->h264)
