@@ -251,7 +251,6 @@ endif()
 
 if(ANDROID AND WITH_MEDIACODEC)
     list(APPEND CODEC_SRCS codec/h264_mediacodec.c)
-
 		find_library(MEDIACODEC mediandk REQUIRED)
 		freerdp_library_add(${MEDIACODEC})
 endif()
