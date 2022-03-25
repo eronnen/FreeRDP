@@ -26,19 +26,19 @@ static const char* jLibFreeRDPPath = JAVA_LIBFREERDP_CLASS;
 
 static void jni_load_class(JNIEnv* env, const char* path, jobject* objptr)
 {
-	jclass class;
+	jclass javaClass;
 	jmethodID method;
 	jobject object;
 	WLog_DBG(TAG, "jni_load_class: %s", path);
-	class = (*env)->FindClass(env, path);
+	javaClass = env->FindClass(path);
 
-	if (!class)
+	if (!javaClass)
 	{
 		WLog_ERR(TAG, "jni_load_class: failed to find class %s", path);
 		goto finish;
 	}
 
-	method = (*env)->GetMethodID(env, class, "<init>", "()V");
+	method = env->GetMethodID(javaClass, "<init>", "()V");
 
 	if (!method)
 	{
@@ -46,7 +46,7 @@ static void jni_load_class(JNIEnv* env, const char* path, jobject* objptr)
 		goto finish;
 	}
 
-	object = (*env)->NewObject(env, class, method);
+	object = env->NewObject(javaClass, method);
 
 	if (!object)
 	{
@@ -54,7 +54,7 @@ static void jni_load_class(JNIEnv* env, const char* path, jobject* objptr)
 		goto finish;
 	}
 
-	(*objptr) = (*env)->NewGlobalRef(env, object);
+	(*objptr) = env->NewGlobalRef(object);
 finish:
 
 	while (0)
@@ -71,12 +71,12 @@ jint init_callback_environment(JavaVM* vm, JNIEnv* env)
 /* attach current thread to jvm */
 jboolean jni_attach_thread(JNIEnv** env)
 {
-	if ((*jVM)->GetEnv(jVM, (void**)env, JNI_VERSION_1_4) != JNI_OK)
+	if (jVM->GetEnv((void**)env, JNI_VERSION_1_4) != JNI_OK)
 	{
 		WLog_DBG(TAG, "android_java_callback: attaching current thread");
-		(*jVM)->AttachCurrentThread(jVM, env, NULL);
+		jVM->AttachCurrentThread(env, NULL);
 
-		if ((*jVM)->GetEnv(jVM, (void**)env, JNI_VERSION_1_4) != JNI_OK)
+		if (jVM->GetEnv((void**)env, JNI_VERSION_1_4) != JNI_OK)
 		{
 			WLog_ERR(TAG, "android_java_callback: failed to obtain current JNI environment");
 		}
@@ -90,7 +90,7 @@ jboolean jni_attach_thread(JNIEnv** env)
 /* attach current thread to JVM */
 void jni_detach_thread()
 {
-	(*jVM)->DetachCurrentThread(jVM);
+	jVM->DetachCurrentThread();
 }
 
 /* callback with void result */
@@ -103,7 +103,7 @@ static void java_callback_void(jobject obj, const char* callback, const char* si
 	JNIEnv* env;
 	WLog_DBG(TAG, "java_callback: %s (%s)", callback, signature);
 	attached = jni_attach_thread(&env);
-	jObjClass = (*env)->GetObjectClass(env, obj);
+	jObjClass = env->GetObjectClass(obj);
 
 	if (!jObjClass)
 	{
@@ -111,7 +111,7 @@ static void java_callback_void(jobject obj, const char* callback, const char* si
 		goto finish;
 	}
 
-	jCallback = (*env)->GetStaticMethodID(env, jObjClass, callback, signature);
+	jCallback = env->GetStaticMethodID(jObjClass, callback, signature);
 
 	if (!jCallback)
 	{
@@ -119,7 +119,7 @@ static void java_callback_void(jobject obj, const char* callback, const char* si
 		goto finish;
 	}
 
-	(*env)->CallStaticVoidMethodV(env, jObjClass, jCallback, args);
+	env->CallStaticVoidMethodV(jObjClass, jCallback, args);
 finish:
 
 	if (attached == JNI_TRUE)
@@ -137,7 +137,7 @@ static jboolean java_callback_bool(jobject obj, const char* callback, const char
 	JNIEnv* env;
 	WLog_DBG(TAG, "java_callback: %s (%s)", callback, signature);
 	attached = jni_attach_thread(&env);
-	jObjClass = (*env)->GetObjectClass(env, obj);
+	jObjClass = env->GetObjectClass(obj);
 
 	if (!jObjClass)
 	{
@@ -145,7 +145,7 @@ static jboolean java_callback_bool(jobject obj, const char* callback, const char
 		goto finish;
 	}
 
-	jCallback = (*env)->GetStaticMethodID(env, jObjClass, callback, signature);
+	jCallback = env->GetStaticMethodID(jObjClass, callback, signature);
 
 	if (!jCallback)
 	{
@@ -153,7 +153,7 @@ static jboolean java_callback_bool(jobject obj, const char* callback, const char
 		goto finish;
 	}
 
-	res = (*env)->CallStaticBooleanMethodV(env, jObjClass, jCallback, args);
+	res = env->CallStaticBooleanMethodV(jObjClass, jCallback, args);
 finish:
 
 	if (attached == JNI_TRUE)
@@ -173,7 +173,7 @@ static jint java_callback_int(jobject obj, const char* callback, const char* sig
 	JNIEnv* env;
 	WLog_DBG(TAG, "java_callback: %s (%s)", callback, signature);
 	attached = jni_attach_thread(&env);
-	jObjClass = (*env)->GetObjectClass(env, obj);
+	jObjClass = env->GetObjectClass(obj);
 
 	if (!jObjClass)
 	{
@@ -181,7 +181,7 @@ static jint java_callback_int(jobject obj, const char* callback, const char* sig
 		goto finish;
 	}
 
-	jCallback = (*env)->GetStaticMethodID(env, jObjClass, callback, signature);
+	jCallback = env->GetStaticMethodID(jObjClass, callback, signature);
 
 	if (!jCallback)
 	{
@@ -189,7 +189,7 @@ static jint java_callback_int(jobject obj, const char* callback, const char* sig
 		goto finish;
 	}
 
-	res = (*env)->CallStaticIntMethodV(env, jObjClass, jCallback, args);
+	res = env->CallStaticIntMethodV(jObjClass, jCallback, args);
 finish:
 
 	if (attached == JNI_TRUE)

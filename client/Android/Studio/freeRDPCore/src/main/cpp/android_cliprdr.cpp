@@ -426,13 +426,13 @@ android_cliprdr_server_format_data_response(CliprdrClientContext* cliprdr,
 		jstring jdata;
 		jboolean attached;
 		formatId = ClipboardRegisterFormat(afc->clipboard, "UTF8_STRING");
-		data = (void*)ClipboardGetData(afc->clipboard, formatId, &size);
+		data = (BYTE*)ClipboardGetData(afc->clipboard, formatId, &size);
 		attached = jni_attach_thread(&env);
-		size = strnlen(data, size);
-		jdata = jniNewStringUTF(env, data, size);
+		size = strnlen((const char*)data, size);
+		jdata = jniNewStringUTF(env, (const char*)data, (int)size);
 		freerdp_callback("OnRemoteClipboardChanged", "(JLjava/lang/String;)V", (jlong)instance,
 		                 jdata);
-		(*env)->DeleteLocalRef(env, jdata);
+		env->DeleteLocalRef(jdata);
 
 		if (attached == JNI_TRUE)
 			jni_detach_thread();

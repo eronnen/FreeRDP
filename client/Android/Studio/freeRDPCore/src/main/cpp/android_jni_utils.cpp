@@ -30,7 +30,7 @@ JavaVM* getJavaVM()
 JNIEnv* getJNIEnv()
 {
 	JNIEnv* env = NULL;
-	if ((*g_JavaVm)->GetEnv(g_JavaVm, (void**)&env, JNI_VERSION_1_4) != JNI_OK)
+	if (g_JavaVm->GetEnv((void**)&env, JNI_VERSION_1_4) != JNI_OK)
 	{
 		WLog_FATAL(TAG, "Failed to obtain JNIEnv");
 		return NULL;
@@ -45,32 +45,32 @@ jobject create_string_builder(JNIEnv* env, char* initialStr)
 	jobject obj;
 
 	// get class
-	cls = (*env)->FindClass(env, "java/lang/StringBuilder");
+	cls = env->FindClass("java/lang/StringBuilder");
 	if (!cls)
 		return NULL;
 
 	if (initialStr)
 	{
 		// get method id for constructor
-		methodId = (*env)->GetMethodID(env, cls, "<init>", "(Ljava/lang/String;)V");
+		methodId = env->GetMethodID(cls, "<init>", "(Ljava/lang/String;)V");
 		if (!methodId)
 			return NULL;
 
 		// create string that holds our initial string
-		jstring jstr = (*env)->NewStringUTF(env, initialStr);
+		jstring jstr = env->NewStringUTF(initialStr);
 
 		// construct new StringBuilder
-		obj = (*env)->NewObject(env, cls, methodId, jstr);
+		obj = env->NewObject(cls, methodId, jstr);
 	}
 	else
 	{
 		// get method id for constructor
-		methodId = (*env)->GetMethodID(env, cls, "<init>", "()V");
+		methodId = env->GetMethodID(cls, "<init>", "()V");
 		if (!methodId)
 			return NULL;
 
 		// construct new StringBuilder
-		obj = (*env)->NewObject(env, cls, methodId);
+		obj = env->NewObject(cls, methodId);
 	}
 
 	return obj;
@@ -85,24 +85,24 @@ char* get_string_from_string_builder(JNIEnv* env, jobject strBuilder)
 	char* result;
 
 	// get class
-	cls = (*env)->FindClass(env, "java/lang/StringBuilder");
+	cls = env->FindClass("java/lang/StringBuilder");
 	if (!cls)
 		return NULL;
 
 	// get method id for constructor
-	methodId = (*env)->GetMethodID(env, cls, "toString", "()Ljava/lang/String;");
+	methodId = env->GetMethodID(cls, "toString", "()Ljava/lang/String;");
 	if (!methodId)
 		return NULL;
 
 	// get jstring representation of our buffer
-	strObj = (*env)->CallObjectMethod(env, strBuilder, methodId);
+	strObj = (jstring)env->CallObjectMethod(strBuilder, methodId);
 
 	// read string
-	native_str = (*env)->GetStringUTFChars(env, strObj, NULL);
+	native_str = env->GetStringUTFChars(strObj, NULL);
 	if (!native_str)
 		return NULL;
 	result = _strdup(native_str);
-	(*env)->ReleaseStringUTFChars(env, strObj, native_str);
+	env->ReleaseStringUTFChars(strObj, native_str);
 
 	return result;
 }
@@ -185,7 +185,7 @@ jstring jniNewStringUTF(JNIEnv* env, const char* in, int len)
 		}
 	}
 
-	out = (*env)->NewString(env, unicode, result_size);
+	out = env->NewString(unicode, result_size);
 	free(unicode);
 
 	return out;

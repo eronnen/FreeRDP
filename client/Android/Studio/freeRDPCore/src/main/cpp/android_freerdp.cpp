@@ -375,11 +375,11 @@ static DWORD android_verify_certificate_ex(freerdp* instance, const char* host, 
 	         "Please look at the OpenSSL documentation on how to add a private CA to the store.\n");
 	JNIEnv* env;
 	jboolean attached = jni_attach_thread(&env);
-	jstring jstr0 = (*env)->NewStringUTF(env, host);
-	jstring jstr1 = (*env)->NewStringUTF(env, common_name);
-	jstring jstr2 = (*env)->NewStringUTF(env, subject);
-	jstring jstr3 = (*env)->NewStringUTF(env, issuer);
-	jstring jstr4 = (*env)->NewStringUTF(env, fingerprint);
+	jstring jstr0 = env->NewStringUTF(host);
+	jstring jstr1 = env->NewStringUTF(common_name);
+	jstring jstr2 = env->NewStringUTF(subject);
+	jstring jstr3 = env->NewStringUTF(issuer);
+	jstring jstr4 = env->NewStringUTF(fingerprint);
 	jint res = freerdp_callback_int_result("OnVerifyCertificateEx",
 	                                       "(JLjava/lang/String;JLjava/lang/String;Ljava/lang/"
 	                                       "String;Ljava/lang/String;Ljava/lang/String;J)I",
@@ -400,14 +400,14 @@ static DWORD android_verify_changed_certificate_ex(freerdp* instance, const char
 {
 	JNIEnv* env;
 	jboolean attached = jni_attach_thread(&env);
-	jstring jhost = (*env)->NewStringUTF(env, host);
-	jstring jstr0 = (*env)->NewStringUTF(env, common_name);
-	jstring jstr1 = (*env)->NewStringUTF(env, subject);
-	jstring jstr2 = (*env)->NewStringUTF(env, issuer);
-	jstring jstr3 = (*env)->NewStringUTF(env, new_fingerprint);
-	jstring jstr4 = (*env)->NewStringUTF(env, old_subject);
-	jstring jstr5 = (*env)->NewStringUTF(env, old_issuer);
-	jstring jstr6 = (*env)->NewStringUTF(env, old_fingerprint);
+	jstring jhost = env->NewStringUTF(host);
+	jstring jstr0 = env->NewStringUTF(common_name);
+	jstring jstr1 = env->NewStringUTF(subject);
+	jstring jstr2 = env->NewStringUTF(issuer);
+	jstring jstr3 = env->NewStringUTF(new_fingerprint);
+	jstring jstr4 = env->NewStringUTF(old_subject);
+	jstring jstr5 = env->NewStringUTF(old_issuer);
+	jstring jstr6 = env->NewStringUTF(old_fingerprint);
 	jint res =
 	    freerdp_callback_int_result("OnVerifyChangedCertificateEx",
 	                                "(JLjava/lang/String;JLjava/lang/String;Ljava/lang/"
@@ -489,7 +489,7 @@ disconnect:
 static DWORD WINAPI android_thread_func(LPVOID param)
 {
 	DWORD status = ERROR_BAD_ARGUMENTS;
-	freerdp* instance = param;
+	freerdp* instance = (freerdp*)param;
 	WLog_DBG(TAG, "Start...");
 
 	WINPR_ASSERT(instance);
@@ -571,7 +571,11 @@ static int RdpClientEntry(RDP_CLIENT_ENTRY_POINTS* pEntryPoints)
 	return 0;
 }
 
-static jlong JNICALL jni_freerdp_new(JNIEnv* env, jclass cls, jobject context)
+
+extern "C"
+JNIEXPORT jlong JNICALL
+Java_com_freerdp_freerdpcore_services_LibFreeRDP_freerdp_1new(JNIEnv *env, jclass clazz,
+															  jobject context)
 {
 	jclass contextClass;
 	jclass fileClass;
@@ -587,8 +591,8 @@ static jlong JNICALL jni_freerdp_new(JNIEnv* env, jclass cls, jobject context)
 	setenv("CPUPROFILE_FREQUENCY", "200", 1);
 	monstartup("libfreerdp-android.so");
 #endif
-	contextClass = (*env)->FindClass(env, JAVA_CONTEXT_CLASS);
-	fileClass = (*env)->FindClass(env, JAVA_FILE_CLASS);
+	contextClass = env->FindClass(JAVA_CONTEXT_CLASS);
+	fileClass = env->FindClass(JAVA_FILE_CLASS);
 
 	if (!contextClass || !fileClass)
 	{
@@ -598,7 +602,7 @@ static jlong JNICALL jni_freerdp_new(JNIEnv* env, jclass cls, jobject context)
 	}
 
 	getFilesDirID =
-	    (*env)->GetMethodID(env, contextClass, "getFilesDir", "()L" JAVA_FILE_CLASS ";");
+	    env->GetMethodID(contextClass, "getFilesDir", "()L" JAVA_FILE_CLASS ";");
 
 	if (!getFilesDirID)
 	{
@@ -607,7 +611,7 @@ static jlong JNICALL jni_freerdp_new(JNIEnv* env, jclass cls, jobject context)
 	}
 
 	getAbsolutePathID =
-	    (*env)->GetMethodID(env, fileClass, "getAbsolutePath", "()Ljava/lang/String;");
+	    env->GetMethodID(fileClass, "getAbsolutePath", "()Ljava/lang/String;");
 
 	if (!getAbsolutePathID)
 	{
@@ -615,7 +619,7 @@ static jlong JNICALL jni_freerdp_new(JNIEnv* env, jclass cls, jobject context)
 		return (jlong)NULL;
 	}
 
-	filesDirObj = (*env)->CallObjectMethod(env, context, getFilesDirID);
+	filesDirObj = env->CallObjectMethod(context, getFilesDirID);
 
 	if (!filesDirObj)
 	{
@@ -623,7 +627,7 @@ static jlong JNICALL jni_freerdp_new(JNIEnv* env, jclass cls, jobject context)
 		return (jlong)NULL;
 	}
 
-	path = (*env)->CallObjectMethod(env, filesDirObj, getAbsolutePathID);
+	path = (jstring)env->CallObjectMethod(filesDirObj, getAbsolutePathID);
 
 	if (!path)
 	{
@@ -631,7 +635,7 @@ static jlong JNICALL jni_freerdp_new(JNIEnv* env, jclass cls, jobject context)
 		return (jlong)NULL;
 	}
 
-	raw = (*env)->GetStringUTFChars(env, path, 0);
+	raw = env->GetStringUTFChars(path, 0);
 
 	if (!raw)
 	{
@@ -640,7 +644,7 @@ static jlong JNICALL jni_freerdp_new(JNIEnv* env, jclass cls, jobject context)
 	}
 
 	envStr = _strdup(raw);
-	(*env)->ReleaseStringUTFChars(env, path, raw);
+	env->ReleaseStringUTFChars(path, raw);
 
 	if (!envStr)
 	{
@@ -663,7 +667,10 @@ static jlong JNICALL jni_freerdp_new(JNIEnv* env, jclass cls, jobject context)
 	return (jlong)ctx->instance;
 }
 
-static void JNICALL jni_freerdp_free(JNIEnv* env, jclass cls, jlong instance)
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_freerdp_freerdpcore_services_LibFreeRDP_freerdp_1free(JNIEnv *env, jclass clazz,
+															   jlong instance)
 {
 	freerdp* inst = (freerdp*)instance;
 
@@ -675,19 +682,25 @@ static void JNICALL jni_freerdp_free(JNIEnv* env, jclass cls, jlong instance)
 #endif
 }
 
-static jstring JNICALL jni_freerdp_get_last_error_string(JNIEnv* env, jclass cls, jlong instance)
+extern "C"
+JNIEXPORT jstring JNICALL
+Java_com_freerdp_freerdpcore_services_LibFreeRDP_freerdp_1get_1last_1error_1string(JNIEnv *env,
+																				   jclass clazz,
+																				   jlong instance)
 {
 	freerdp* inst = (freerdp*)instance;
 
 	if (!inst || !inst->context)
-		return (*env)->NewStringUTF(env, "");
+		return env->NewStringUTF("");
 
-	return (*env)->NewStringUTF(
-	    env, freerdp_get_last_error_string(freerdp_get_last_error(inst->context)));
+	return env->NewStringUTF(freerdp_get_last_error_string(freerdp_get_last_error(inst->context)));
 }
 
-static jboolean JNICALL jni_freerdp_parse_arguments(JNIEnv* env, jclass cls, jlong instance,
-                                                    jobjectArray arguments)
+extern "C"
+JNIEXPORT jboolean JNICALL
+Java_com_freerdp_freerdpcore_services_LibFreeRDP_freerdp_1parse_1arguments(JNIEnv *env,
+																		   jclass clazz, jlong instance,
+																		   jobjectArray arguments)
 {
 	freerdp* inst = (freerdp*)instance;
 	int i, count;
@@ -697,18 +710,18 @@ static jboolean JNICALL jni_freerdp_parse_arguments(JNIEnv* env, jclass cls, jlo
 	if (!inst || !inst->context)
 		return JNI_FALSE;
 
-	count = (*env)->GetArrayLength(env, arguments);
-	argv = calloc(count, sizeof(char*));
+	count = env->GetArrayLength(arguments);
+	argv = (char**)calloc(count, sizeof(char*));
 
 	if (!argv)
 		return JNI_TRUE;
 
 	for (i = 0; i < count; i++)
 	{
-		jstring str = (jstring)(*env)->GetObjectArrayElement(env, arguments, i);
-		const char* raw = (*env)->GetStringUTFChars(env, str, 0);
+		jstring str = (jstring)env->GetObjectArrayElement(arguments, i);
+		const char* raw = env->GetStringUTFChars(str, 0);
 		argv[i] = _strdup(raw);
-		(*env)->ReleaseStringUTFChars(env, str, raw);
+		env->ReleaseStringUTFChars(str, raw);
 	}
 
 	status =
@@ -721,14 +734,17 @@ static jboolean JNICALL jni_freerdp_parse_arguments(JNIEnv* env, jclass cls, jlo
 	return (status == 0) ? JNI_TRUE : JNI_FALSE;
 }
 
-static jboolean JNICALL jni_freerdp_connect(JNIEnv* env, jclass cls, jlong instance)
+extern "C"
+JNIEXPORT jboolean JNICALL
+Java_com_freerdp_freerdpcore_services_LibFreeRDP_freerdp_1connect(JNIEnv *env, jclass clazz,
+																  jlong instance)
 {
 	freerdp* inst = (freerdp*)instance;
 	androidContext* ctx;
 
 	if (!inst || !inst->context)
 	{
-		WLog_FATAL(TAG, "%s(env=%p, cls=%p, instance=%d", __FUNCTION__, (void*)env, (void*)cls,
+		WLog_FATAL(TAG, "%s(env=%p, cls=%p, instance=%d", __FUNCTION__, (void*)env, (void*)clazz,
 		           instance);
 		return JNI_FALSE;
 	}
@@ -743,15 +759,18 @@ static jboolean JNICALL jni_freerdp_connect(JNIEnv* env, jclass cls, jlong insta
 	return JNI_TRUE;
 }
 
-static jboolean JNICALL jni_freerdp_disconnect(JNIEnv* env, jclass cls, jlong instance)
+extern "C"
+JNIEXPORT jboolean JNICALL
+Java_com_freerdp_freerdpcore_services_LibFreeRDP_freerdp_1disconnect(JNIEnv *env, jclass clazz,
+																	 jlong instance)
 {
 	freerdp* inst = (freerdp*)instance;
 	androidContext* ctx;
 	ANDROID_EVENT* event;
 
-	if (!inst || !inst->context || !cls || !env)
+	if (!inst || !inst->context || !clazz || !env)
 	{
-		WLog_FATAL(TAG, "%s(env=%p, cls=%p, instance=%d", __FUNCTION__, (void*)env, (void*)cls,
+		WLog_FATAL(TAG, "%s(env=%p, cls=%p, instance=%d", __FUNCTION__, (void*)env, (void*)clazz,
 		           instance);
 		return JNI_FALSE;
 	}
@@ -774,9 +793,13 @@ static jboolean JNICALL jni_freerdp_disconnect(JNIEnv* env, jclass cls, jlong in
 	return JNI_TRUE;
 }
 
-static jboolean JNICALL jni_freerdp_update_graphics(JNIEnv* env, jclass cls, jlong instance,
-                                                    jobject bitmap, jint x, jint y, jint width,
-                                                    jint height)
+extern "C"
+JNIEXPORT jboolean JNICALL
+Java_com_freerdp_freerdpcore_services_LibFreeRDP_freerdp_1update_1graphics(JNIEnv *env,
+																		   jclass clazz, jlong instance,
+																		   jobject bitmap, jint x,
+																		   jint y, jint width,
+																		   jint height)
 {
 	UINT32 DstFormat;
 	jboolean rc;
@@ -786,9 +809,9 @@ static jboolean JNICALL jni_freerdp_update_graphics(JNIEnv* env, jclass cls, jlo
 	freerdp* inst = (freerdp*)instance;
 	rdpGdi* gdi;
 
-	if (!env || !cls || !inst)
+	if (!env || !clazz || !inst)
 	{
-		WLog_FATAL(TAG, "%s(env=%p, cls=%p, instance=%d", __FUNCTION__, (void*)env, (void*)cls,
+		WLog_FATAL(TAG, "%s(env=%p, cls=%p, instance=%d", __FUNCTION__, (void*)env, (void*)clazz,
 		           instance);
 		return JNI_FALSE;
 	}
@@ -829,7 +852,7 @@ static jboolean JNICALL jni_freerdp_update_graphics(JNIEnv* env, jclass cls, jlo
 
 	if (rc)
 	{
-		rc = freerdp_image_copy(pixels, DstFormat, info.stride, x, y, width, height,
+		rc = freerdp_image_copy((BYTE*)pixels, DstFormat, info.stride, x, y, width, height,
 		                        gdi->primary_buffer, gdi->dstFormat, gdi->stride, x, y,
 		                        &gdi->palette, FREERDP_FLIP_NONE);
 	}
@@ -843,8 +866,12 @@ static jboolean JNICALL jni_freerdp_update_graphics(JNIEnv* env, jclass cls, jlo
 	return rc;
 }
 
-static jboolean JNICALL jni_freerdp_send_key_event(JNIEnv* env, jclass cls, jlong instance,
-                                                   jint keycode, jboolean down)
+extern "C"
+JNIEXPORT jboolean JNICALL
+Java_com_freerdp_freerdpcore_services_LibFreeRDP_freerdp_1send_1key_1event(JNIEnv *env,
+																		   jclass clazz, jlong instance,
+																		   jint keycode,
+																		   jboolean down)
 {
 	DWORD scancode;
 	ANDROID_EVENT* event;
@@ -867,8 +894,13 @@ static jboolean JNICALL jni_freerdp_send_key_event(JNIEnv* env, jclass cls, jlon
 	return JNI_TRUE;
 }
 
-static jboolean JNICALL jni_freerdp_send_unicodekey_event(JNIEnv* env, jclass cls, jlong instance,
-                                                          jint keycode, jboolean down)
+extern "C"
+JNIEXPORT jboolean JNICALL
+Java_com_freerdp_freerdpcore_services_LibFreeRDP_freerdp_1send_1unicodekey_1event(JNIEnv *env,
+																				  jclass clazz,
+																				  jlong instance,
+																				  jint keycode,
+																				  jboolean down)
 {
 	ANDROID_EVENT* event;
 	freerdp* inst = (freerdp*)instance;
@@ -888,8 +920,12 @@ static jboolean JNICALL jni_freerdp_send_unicodekey_event(JNIEnv* env, jclass cl
 	return JNI_TRUE;
 }
 
-static jboolean JNICALL jni_freerdp_send_cursor_event(JNIEnv* env, jclass cls, jlong instance,
-                                                      jint x, jint y, jint flags)
+extern "C"
+JNIEXPORT jboolean JNICALL
+Java_com_freerdp_freerdpcore_services_LibFreeRDP_freerdp_1send_1cursor_1event(JNIEnv *env,
+																			  jclass clazz,
+																			  jlong instance, jint x,
+																			  jint y, jint flags)
 {
 	ANDROID_EVENT* event;
 	freerdp* inst = (freerdp*)instance;
@@ -908,13 +944,17 @@ static jboolean JNICALL jni_freerdp_send_cursor_event(JNIEnv* env, jclass cls, j
 	return JNI_TRUE;
 }
 
-static jboolean JNICALL jni_freerdp_send_clipboard_data(JNIEnv* env, jclass cls, jlong instance,
-                                                        jstring jdata)
+extern "C"
+JNIEXPORT jboolean JNICALL
+Java_com_freerdp_freerdpcore_services_LibFreeRDP_freerdp_1send_1clipboard_1data(JNIEnv *env,
+																				jclass clazz,
+																				jlong instance,
+																				jstring jdata)
 {
 	ANDROID_EVENT* event;
 	freerdp* inst = (freerdp*)instance;
-	const char* data = jdata != NULL ? (*env)->GetStringUTFChars(env, jdata, NULL) : NULL;
-	const size_t data_length = data ? (*env)->GetStringUTFLength(env, jdata) : 0;
+	const char* data = jdata != NULL ? env->GetStringUTFChars(jdata, NULL) : NULL;
+	const size_t data_length = data ? env->GetStringUTFLength(jdata) : 0;
 	jboolean ret = JNI_FALSE;
 	event = (ANDROID_EVENT*)android_event_clipboard_new((void*)data, data_length);
 
@@ -932,17 +972,19 @@ static jboolean JNICALL jni_freerdp_send_clipboard_data(JNIEnv* env, jclass cls,
 out_fail:
 
 	if (data)
-		(*env)->ReleaseStringUTFChars(env, jdata, data);
+		env->ReleaseStringUTFChars(jdata, data);
 
 	return ret;
 }
 
-static jstring JNICALL jni_freerdp_get_jni_version(JNIEnv* env, jclass cls)
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_freerdp_freerdpcore_services_LibFreeRDP_freerdp_1get_1jni_1version(JNIEnv *env, jclass clazz)
 {
-	return (*env)->NewStringUTF(env, FREERDP_JNI_VERSION);
+	return env->NewStringUTF(FREERDP_JNI_VERSION);
 }
 
-static jboolean JNICALL jni_freerdp_has_h264(JNIEnv* env, jclass cls)
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_freerdp_freerdpcore_services_LibFreeRDP_freerdp_1has_1h264(JNIEnv *env, jclass clazz)
 {
 	H264_CONTEXT* ctx = h264_context_new(FALSE);
 	if (!ctx)
@@ -951,45 +993,26 @@ static jboolean JNICALL jni_freerdp_has_h264(JNIEnv* env, jclass cls)
 	return JNI_TRUE;
 }
 
-static jstring JNICALL jni_freerdp_get_version(JNIEnv* env, jclass cls)
-{
-	return (*env)->NewStringUTF(env, freerdp_get_version_string());
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_freerdp_freerdpcore_services_LibFreeRDP_freerdp_1get_1version(JNIEnv *env, jclass clazz) {
+	return env->NewStringUTF(freerdp_get_version_string());
 }
 
-static jstring JNICALL jni_freerdp_get_build_revision(JNIEnv* env, jclass cls)
-{
-	return (*env)->NewStringUTF(env, freerdp_get_build_revision());
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_freerdp_freerdpcore_services_LibFreeRDP_freerdp_1get_1build_1revision(JNIEnv *env,
+																			   jclass clazz) {
+	return env->NewStringUTF(freerdp_get_build_revision());
 }
 
-static jstring JNICALL jni_freerdp_get_build_config(JNIEnv* env, jclass cls)
-{
-	return (*env)->NewStringUTF(env, freerdp_get_build_config());
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_freerdp_freerdpcore_services_LibFreeRDP_freerdp_1get_1build_1config(JNIEnv *env,
+																			 jclass clazz) {
+	return env->NewStringUTF(freerdp_get_build_config());
 }
-
-static JNINativeMethod methods[] = {
-	{ "freerdp_get_jni_version", "()Ljava/lang/String;", &jni_freerdp_get_jni_version },
-	{ "freerdp_get_version", "()Ljava/lang/String;", &jni_freerdp_get_version },
-	{ "freerdp_get_build_revision", "()Ljava/lang/String;", &jni_freerdp_get_build_revision },
-	{ "freerdp_get_build_config", "()Ljava/lang/String;", &jni_freerdp_get_build_config },
-	{ "freerdp_get_last_error_string", "(J)Ljava/lang/String;",
-	  &jni_freerdp_get_last_error_string },
-	{ "freerdp_new", "(Landroid/content/Context;)J", &jni_freerdp_new },
-	{ "freerdp_free", "(J)V", &jni_freerdp_free },
-	{ "freerdp_parse_arguments", "(J[Ljava/lang/String;)Z", &jni_freerdp_parse_arguments },
-	{ "freerdp_connect", "(J)Z", &jni_freerdp_connect },
-	{ "freerdp_disconnect", "(J)Z", &jni_freerdp_disconnect },
-	{ "freerdp_update_graphics", "(JLandroid/graphics/Bitmap;IIII)Z",
-	  &jni_freerdp_update_graphics },
-	{ "freerdp_send_cursor_event", "(JIII)Z", &jni_freerdp_send_cursor_event },
-	{ "freerdp_send_key_event", "(JIZ)Z", &jni_freerdp_send_key_event },
-	{ "freerdp_send_unicodekey_event", "(JIZ)Z", &jni_freerdp_send_unicodekey_event },
-	{ "freerdp_send_clipboard_data", "(JLjava/lang/String;)Z", &jni_freerdp_send_clipboard_data },
-	{ "freerdp_has_h264", "()Z", &jni_freerdp_has_h264 }
-};
 
 static jclass gJavaActivityClass = NULL;
 
-jint JNI_OnLoad(JavaVM* vm, void* reserved)
+extern "C" JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved)
 {
 	JNIEnv* env;
 	setlocale(LC_ALL, "");
@@ -1002,14 +1025,14 @@ jint JNI_OnLoad(JavaVM* vm, void* reserved)
 	        return -1;
 	    }
 	*/
-	if ((*vm)->GetEnv(vm, (void**)&env, JNI_VERSION_1_6) != JNI_OK)
+	if (vm->GetEnv((void**)&env, JNI_VERSION_1_6) != JNI_OK)
 	{
 		WLog_FATAL(TAG, "Failed to get the environment");
 		return -1;
 	}
 
 	// Get SBCEngine activity class
-	jclass activityClass = (*env)->FindClass(env, JAVA_LIBFREERDP_CLASS);
+	jclass activityClass = env->FindClass(JAVA_LIBFREERDP_CLASS);
 
 	if (!activityClass)
 	{
@@ -1017,27 +1040,23 @@ jint JNI_OnLoad(JavaVM* vm, void* reserved)
 		return -1;
 	}
 
-	// Register methods with env->RegisterNatives.
-	(*env)->RegisterNatives(env, activityClass, methods, sizeof(methods) / sizeof(methods[0]));
 	/* create global reference for class */
-	gJavaActivityClass = (*env)->NewGlobalRef(env, activityClass);
+	gJavaActivityClass = (jclass)env->NewGlobalRef(activityClass);
 	g_JavaVm = vm;
 	return init_callback_environment(vm, env);
 }
 
-void JNICALL JNI_OnUnload(JavaVM* vm, void* reserved)
+extern "C" void JNICALL JNI_OnUnload(JavaVM* vm, void* reserved)
 {
 	JNIEnv* env;
 	WLog_DBG(TAG, "Tearing down JNI environement...");
 
-	if ((*vm)->GetEnv(vm, (void**)&env, JNI_VERSION_1_6) != JNI_OK)
+	if (vm->GetEnv((void**)&env, JNI_VERSION_1_6) != JNI_OK)
 	{
 		WLog_FATAL(TAG, "Failed to get the environment");
 		return;
 	}
 
-	(*env)->UnregisterNatives(env, gJavaActivityClass);
-
 	if (gJavaActivityClass)
-		(*env)->DeleteGlobalRef(env, gJavaActivityClass);
+		env->DeleteGlobalRef(gJavaActivityClass);
 }

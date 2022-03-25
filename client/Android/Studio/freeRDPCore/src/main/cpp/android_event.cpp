@@ -40,7 +40,7 @@ BOOL android_push_event(freerdp* inst, ANDROID_EVENT* event)
 		if (!new_events)
 			return FALSE;
 
-		aCtx->event_queue->events = new_events;
+		aCtx->event_queue->events = (ANDROID_EVENT**)new_events;
 		aCtx->event_queue->size = new_size;
 	}
 
